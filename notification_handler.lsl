@@ -178,6 +178,7 @@ string groupName2Pass(string group)
 
 
 
+/*
 sendGroupMessage(list parameters)
 {
     string group = wasURLUnescape(getValue(parameters,"group"));
@@ -185,6 +186,7 @@ sendGroupMessage(list parameters)
     //string n = llDumpList2String(["corrade",corrade,"group_name",getValue(parameters,"group"),"group_pass",groupName2Pass(group),"group_id",groupName2Key(group),"name",getValue(parameters,"name"),"agent",agent,"chat_message",message,"url",url],"|");
     llMessageLinked(LINK_THIS,0,"notification",llDumpList2String(parameters,"|"));
 }
+*/
 
 
 
@@ -200,6 +202,15 @@ sendGroupMessage(list parameters)
  
 // key-value data will be read into this list
 list tuples = [];
+
+handleGroupMessage(string str, integer auth)
+{
+    string g = wasURLUnescape(wasKeyValueGet("group",str));
+    string message = wasURLUnescape(wasKeyValueGet("message",str));
+    str += "&corrade=" + (string)corrade + "&group_pass=" + groupName2Pass(g) + "&group_id=" + groupName2Key(g) + "&url=" + url + "&name=" + wasURLEscape(wasKeyValueGet("firstname",str) + " " + wasKeyValueGet("lastname",str));
+    //llOwnerSay("HANDLE GROUP MESSAGE: "+str);
+    llMessageLinked(LINK_THIS,auth,message,str); 
+}
  
 default {
     state_entry() {
@@ -261,7 +272,7 @@ state detect
     state_entry()
     {
         llOwnerSay("initializing...");
-        llOwnerSay(llDumpList2String(tuples, ","));
+        //llOwnerSay(llDumpList2String(tuples, ","));
         integer i;
         integer len = llGetListLength(tuples);
         for(;i<len;i+=2)
@@ -369,20 +380,15 @@ state active
      http_request(key id, string method, string body)
     {
         llHTTPResponse(id, 200, "Ok");
-        list args = llParseString2List(body,["&"],[]);
-        integer len = llGetListLength(args);
-        integer i;
-        list parameters;
-        for(;i<len;i++)
-            parameters += llParseString2List(llList2String(args,i),["="],[]);
-       // llOwnerSay(llList2CSV(parameters)); 
-        string command = wasURLUnescape(getValue(parameters,"command"));        
-        string group = wasURLUnescape(getValue(parameters,"group"));
-        key agent = wasURLUnescape(getValue(parameters,"agent"));
+        body = wasURLUnescape(body);
+        //llOwnerSay(">>>"+body);
+        string command = wasURLUnescape(wasKeyValueGet("command",body));
+        string group = wasURLUnescape(wasKeyValueGet("group",body));
+        key agent = (key)wasURLUnescape(wasKeyValueGet("agent",body));
         
         if(command == "notify")//is a callback from notify command
         {
-            string success = wasURLUnescape(getValue(parameters,"success"));
+            string success = wasURLUnescape(wasKeyValueGet("success",body));
             if(success == "True")
             {
                 llOwnerSay("successfully connected to: "+group);
@@ -396,9 +402,26 @@ state active
         
         //else if(command == "getmemberroles")
            // llMessageLinked(LINK_THIS,-1,command,llDumpList2String(parameters,"|"));
-                     
-        else if(agent != corrade || command == "getmemberroles")//is a group chat notification
-            sendGroupMessage(parameters);
+        
+         if(command == "getmemberroles")//is an auth check
+            {   
+                list roles = llCSV2List(wasURLUnescape(wasKeyValueGet("data",body)));
+                string required = wasURLUnescape(wasKeyValueGet("required_role",body));
+                integer auth;
+                if(~llListFindList(roles,[required]))
+                    auth = TRUE;
+                else
+                    auth = FALSE;
+                string n = wasKeyValueEncode(llParseString2List(wasURLUnescape(wasKeyValueGet("notification",body)),["|"],[]));
+                handleGroupMessage(n,auth);
+            }
+                    
+        else if(agent != corrade)//is a group chat notification
+        {
+            //llOwnerSay("SUCCESSFUL CHAT MSG: "+wasURLUnescape(wasKeyValueGet("message",body)));
+            //llOwnerSay(">>"+body);
+            handleGroupMessage(body,-1);
+        }
     }
     
     dataserver(key id, string data)
