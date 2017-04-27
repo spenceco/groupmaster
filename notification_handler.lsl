@@ -203,13 +203,12 @@ sendGroupMessage(list parameters)
 // key-value data will be read into this list
 list tuples = [];
 
-handleGroupMessage(string str, integer auth)
+handleGroupMessage(string msg, string str)
 {
     string g = wasURLUnescape(wasKeyValueGet("group",str));
-    string message = wasURLUnescape(wasKeyValueGet("message",str));
     str += "&corrade=" + (string)corrade + "&group_pass=" + groupName2Pass(g) + "&group_id=" + groupName2Key(g) + "&url=" + url + "&name=" + wasURLEscape(wasKeyValueGet("firstname",str) + " " + wasKeyValueGet("lastname",str));
     //llOwnerSay("HANDLE GROUP MESSAGE: "+str);
-    llMessageLinked(LINK_THIS,auth,message,str); 
+    llMessageLinked(LINK_THIS,-1,msg,str); 
 }
  
 default {
@@ -385,6 +384,7 @@ state active
         string command = wasURLUnescape(wasKeyValueGet("command",body));
         string group = wasURLUnescape(wasKeyValueGet("group",body));
         key agent = (key)wasURLUnescape(wasKeyValueGet("agent",body));
+        string message = wasURLUnescape(wasKeyValueGet("message",body));
         
         if(command == "notify")//is a callback from notify command
         {
@@ -399,28 +399,19 @@ state active
             else
                 llOwnerSay("unable to connect to: "+group);   
         }
-        
-        //else if(command == "getmemberroles")
-           // llMessageLinked(LINK_THIS,-1,command,llDumpList2String(parameters,"|"));
-        
-         if(command == "getmemberroles")//is an auth check
+         
+        else if(wasURLUnescape(wasKeyValueGet("auth_check",body)) == "True")//is an auth check
             {   
-                list roles = llCSV2List(wasURLUnescape(wasKeyValueGet("data",body)));
-                string required = wasURLUnescape(wasKeyValueGet("required_role",body));
-                integer auth;
-                if(~llListFindList(roles,[required]))
-                    auth = TRUE;
-                else
-                    auth = FALSE;
-                string n = wasKeyValueEncode(llParseString2List(wasURLUnescape(wasKeyValueGet("notification",body)),["|"],[]));
-                handleGroupMessage(n,auth);
+                list args = llParseString2List(wasKeyValueGet("notification",body),["|"],[]);
+                message = llList2String(args,llListFindList(args,["message"])+1);
+                handleGroupMessage(message,body);
             }
-                    
+                   
         else if(agent != corrade)//is a group chat notification
         {
             //llOwnerSay("SUCCESSFUL CHAT MSG: "+wasURLUnescape(wasKeyValueGet("message",body)));
             //llOwnerSay(">>"+body);
-            handleGroupMessage(body,-1);
+            handleGroupMessage(message,body);
         }
     }
     
