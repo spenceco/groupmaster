@@ -1,6 +1,3 @@
-//this script is an example of how to make a command module, and how to implement a role check to limit that command to only the people within the desired role
-
-
 string HELP_STRING = "\ncommand : description\n.whois [name] : access any notes written about [name]\n.roll [sides] : roll a die with [sides] sides\n.music [stream] : set parcel stream\n.arrest [uuid]: submit a vote for Citizen's Arrest\n.drink : get a drink!\n.help : uh...";
 
 ///////////////////////////////////////////////////////////////////////////
@@ -35,14 +32,6 @@ string wasKeyValueEncode(list data) {
     return llDumpList2String(data, "&");
 }
 
-string wasURLEscape(string i) {
-    if(i == "") return "";
-    string o = llGetSubString(i, 0, 0);
-    i = llDeleteSubString(i, 0, 0);
-    if(o == " ") return "+" + wasURLEscape(i);
-    if(o == "\n") return "%0D%0A" + wasURLEscape(i);
-    return llEscapeURL(o) + wasURLEscape(i); 
-}
 
 string wasURLUnescape(string i) {
     return llUnescapeURL(
@@ -64,35 +53,7 @@ string wasURLUnescape(string i) {
     );
 }
 
-string wasListToCSV(list l) {
-    list v = [];
-    do {
-        string a = llDumpList2String(
-            llParseStringKeepNulls(
-                llList2String(
-                    l, 
-                    0
-                ), 
-                ["\""], 
-                []
-            ),
-            "\"\""
-        );
-        if(llParseStringKeepNulls(
-            a, 
-            [" ", ",", "\n", "\""], []
-            ) != 
-            (list) a
-        ) a = "\"" + a + "\"";
-        v += a;
-        l = llDeleteSubList(l, 0, 0);
-    } while(l != []);
-    return llDumpList2String(v, ",");
-} 
 
-list wasKeyValueDecode(string data) {
-    return llParseString2List(data, ["&", "="], []);
-}
 
 ///////////////////////////////////////////////////////////////////////////
 
@@ -119,21 +80,6 @@ groupSay(string notification, string message)
     tell(notification, message,"group");  
 }
 
-regionAlert(string notification, string message)
-{
-    tell(notification, message,"region"); 
-}
-
-
-list uWasURLUnescapeList(list l)
-{
-    integer i;
-    integer len = llGetListLength(l);
-    for(;i<len;i++)
-        l += wasURLUnescape(llList2String(l,i));
-    return llList2List(l,len+1,-1);
-}
-
 
 makeAuthCheck(string notification, string role)
 {
@@ -146,9 +92,9 @@ makeAuthCheck(string notification, string role)
             "password", wasKeyValueGet("group_pass",notification),
             "group_id", wasKeyValueGet("group_id",notification),
             "agent", wasKeyValueGet("agent",notification),
-            //"notification", "agent" +"|"+ wasKeyValueGet("agent",notification) +"|"+ "message" +"|"+ wasKeyValueGet("message",notification),
             "notification", llDumpList2String(llParseString2List(notification,["&","="],[]),"|"),
-            "required_role",role,           
+            "auth_check", "True",//add this parameter so the main script knows how to handle the response
+            "required_role",role,//add this parameter so the script knows which role to look for in the response        
             "callback", wasKeyValueGet("url",notification)
         ]
     )
@@ -166,28 +112,36 @@ default
     {
         if(str != llGetScriptName())
             return;
+        
         string body = (string)id;
         string command = wasURLUnescape(wasKeyValueGet("command",body));
         string group = wasURLUnescape(wasKeyValueGet("group",body));
         key agent = (key)wasURLUnescape(wasKeyValueGet("agent",body));
         string message = wasURLUnescape(wasKeyValueGet("message",body));
-        if(message == llGetScriptName())
-        {
-            if(num == -1)
-            {
-                groupSay(body,"authorizing..."); 
-                makeAuthCheck(body,"Owners"); 
-            }
+        string required = wasURLUnescape(wasKeyValueGet("required_role",body));
+        list roles = llCSV2List(wasKeyValueGet("roles",body));
             
-            else if(!num)
-            {
-                groupSay(body,"You do not have the required role to use this function.");   
-            }
+            
+            
+            
+        if(command == "getmemberroles")//is an auth check
+        {   
+            list roles = llCSV2List(wasURLUnescape(wasKeyValueGet("data",body)));
+            string required = wasURLUnescape(wasKeyValueGet("required_role",body));
+            // list params = llParseString2List(wasKeyValueGet("required_role",body));
+            if(~llListFindList(roles,[required]))
+                groupSay(body,"Hello, world!"); 
             else
-            {
-                groupSay(body,"Hello, world!");  
-            }  
+                groupSay(body,"You do not have the required role to use this function.");
         }
+            
+            
+        else
+        {
+            groupSay(body,"authorizing..."); 
+            makeAuthCheck(body,"Owners"); 
+        }
+                
     }
     
     changed(integer change)
