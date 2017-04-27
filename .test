@@ -1,4 +1,4 @@
-string HELP_STRING = "\ncommand : description\n.whois [name] : access any notes written about [name]\n.roll [sides] : roll a die with [sides] sides\n.music [stream] : set parcel stream\n.arrest [uuid]: submit a vote for Citizen's Arrest\n.drink : get a drink!\n.help : uh...";
+list ALLOWED_ROLES = ["Owners"];//a list of group roles that are allowed to use this module
 
 ///////////////////////////////////////////////////////////////////////////
 ///WaS fuctions
@@ -81,7 +81,7 @@ groupSay(string notification, string message)
 }
 
 
-makeAuthCheck(string notification, string role)
+makeAuthCheck(string notification)
 {
    // llOwnerSay("N: "+notification);
     llInstantMessage(wasKeyValueGet("corrade",notification),
@@ -92,9 +92,7 @@ makeAuthCheck(string notification, string role)
             "password", wasKeyValueGet("group_pass",notification),
             "group_id", wasKeyValueGet("group_id",notification),
             "agent", wasKeyValueGet("agent",notification),
-            "notification", llDumpList2String(llParseString2List(notification,["&","="],[]),"|"),
-            "auth_check", "True",//add this parameter so the main script knows how to handle the response
-            "required_role",role,//add this parameter so the script knows which role to look for in the response        
+            "original_notification", llDumpList2String(llParseString2List(notification,["&","="],[]),"|"),//dump the parameters of the current notification into the callback    
             "callback", wasKeyValueGet("url",notification)
         ]
     )
@@ -112,13 +110,11 @@ default
     {
         if(str != llGetScriptName())
             return;
-        
+
         string body = (string)id;
         string command = wasURLUnescape(wasKeyValueGet("command",body));
         string group = wasURLUnescape(wasKeyValueGet("group",body));
         key agent = (key)wasURLUnescape(wasKeyValueGet("agent",body));
-        string message = wasURLUnescape(wasKeyValueGet("message",body));
-        string required = wasURLUnescape(wasKeyValueGet("required_role",body));
         list roles = llCSV2List(wasKeyValueGet("roles",body));
             
             
@@ -127,19 +123,26 @@ default
         if(command == "getmemberroles")//is an auth check
         {   
             list roles = llCSV2List(wasURLUnescape(wasKeyValueGet("data",body)));
-            string required = wasURLUnescape(wasKeyValueGet("required_role",body));
-            // list params = llParseString2List(wasKeyValueGet("required_role",body));
-            if(~llListFindList(roles,[required]))
-                groupSay(body,"Hello, world!"); 
-            else
-                groupSay(body,"You do not have the required role to use this function.");
+            integer i;
+            integer len = llGetListLength(roles);
+            for(;i<len;i++)
+            {
+                string r = llList2String(roles,i);
+                if(~llListFindList(ALLOWED_ROLES,[r]))
+                    jump authorized; 
+            }
+            
+            groupSay(body,"You do not have the required role to use this function.");
+            return;
+@authorized;
+            groupSay(body,"Hello, world!"); 
         }
             
             
         else
         {
             groupSay(body,"authorizing..."); 
-            makeAuthCheck(body,"Owners"); 
+            makeAuthCheck(body); 
         }
                 
     }
