@@ -207,8 +207,11 @@ handleGroupMessage(string msg, string str)
 {
     string g = wasURLUnescape(wasKeyValueGet("group",str));
     str += "&corrade=" + (string)corrade + "&group_pass=" + groupName2Pass(g) + "&group_id=" + groupName2Key(g) + "&url=" + url + "&name=" + wasURLEscape(wasKeyValueGet("firstname",str) + " " + wasKeyValueGet("lastname",str));
-    //llOwnerSay("HANDLE GROUP MESSAGE: "+str);
-    llMessageLinked(LINK_THIS,-1,msg,str); 
+    integer ind = llSubStringIndex(msg," ");
+    if(~ind)
+        msg = llGetSubString(msg,0,ind-1);
+    if(llGetInventoryType(msg) == INVENTORY_SCRIPT)
+        llMessageLinked(LINK_THIS,-1,msg,str); 
 }
  
 default {
@@ -385,6 +388,14 @@ state active
         string group = wasURLUnescape(wasKeyValueGet("group",body));
         key agent = (key)wasURLUnescape(wasKeyValueGet("agent",body));
         string message = wasURLUnescape(wasKeyValueGet("message",body));
+        string original_notification = wasKeyValueGet("original_notification",body);
+        if(original_notification != "")
+        {
+            //this is a callback, so extract the original chat message and use it instead
+            list args = llParseString2List(original_notification,["|"],[]);
+            integer ind = llListFindList(args,["message"]);
+            message = llList2String(args,ind+1);
+        }
         
         if(command == "notify")//is a callback from notify command
         {
@@ -399,18 +410,12 @@ state active
             else
                 llOwnerSay("unable to connect to: "+group);   
         }
-         
-        else if(wasURLUnescape(wasKeyValueGet("auth_check",body)) == "True")//is an auth check
-            {   
-                list args = llParseString2List(wasKeyValueGet("notification",body),["|"],[]);
-                message = llList2String(args,llListFindList(args,["message"])+1);
-                handleGroupMessage(message,body);
-            }
+        
                    
         else if(agent != corrade)//is a group chat notification
         {
             //llOwnerSay("SUCCESSFUL CHAT MSG: "+wasURLUnescape(wasKeyValueGet("message",body)));
-            //llOwnerSay(">>"+body);
+            //llOwnerSay(">>"+message);
             handleGroupMessage(message,body);
         }
     }
