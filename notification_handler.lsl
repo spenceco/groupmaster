@@ -382,8 +382,6 @@ state active
      http_request(key id, string method, string body)
     {
         llHTTPResponse(id, 200, "Ok");
-        body = wasURLUnescape(body);
-        //llOwnerSay(">>>"+body);
         string command = wasURLUnescape(wasKeyValueGet("command",body));
         string group = wasURLUnescape(wasKeyValueGet("group",body));
         key agent = (key)wasURLUnescape(wasKeyValueGet("agent",body));
@@ -392,7 +390,7 @@ state active
         if(original_notification != "")
         {
             //this is a callback, so extract the original chat message and use it instead
-            list args = llParseString2List(original_notification,["|"],[]);
+            list args = llParseString2List(wasURLUnescape(original_notification),["|"],[]);
             integer ind = llListFindList(args,["message"]);
             message = llList2String(args,ind+1);
         }
