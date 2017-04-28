@@ -1,0 +1,119 @@
+///////////////////////////////////////////////////////////////////////////
+///WaS fuctions
+
+
+string wasKeyValueGet(string k, string data) {
+    if(llStringLength(data) == 0) return "";
+    if(llStringLength(k) == 0) return "";
+    list a = llParseString2List(data, ["&", "="], []);
+    integer i = llListFindList(llList2ListStrided(a, 0, -1, 2), [ k ]);
+    if(i != -1) return llList2String(a, 2*i+1);
+    return "";
+}
+
+string wasKeyValueEncode(list data) {
+    integer i = llGetListLength(data);
+    if (i % 2 != 0 || i == 0) return "";
+    --i;
+    do {
+        data = llListInsertList(
+            llDeleteSubList(
+                data, 
+                i-1, 
+                i
+            ),
+            [ llList2String(data, i-1) + "=" + llList2String(data, i) ], 
+            i-1
+        );
+        i -= 2;
+    } while(i > 0);
+    return llDumpList2String(data, "&");
+}
+
+
+string wasURLUnescape(string i) {
+    return llUnescapeURL(
+        llDumpList2String(
+            llParseString2List(
+                llDumpList2String(
+                    llParseString2List(
+                        i, 
+                        ["+"], 
+                        []
+                    ), 
+                    " "
+                ), 
+                ["%0D%0A"], 
+                []
+            ), 
+            "\n"
+        )
+    );
+}
+
+
+
+///////////////////////////////////////////////////////////////////////////
+
+
+tell(string notification, string message, string entity)
+{
+    //llOwnerSay("TELL: "+notification);
+llInstantMessage((key)wasKeyValueGet("corrade",notification),
+    wasKeyValueEncode(
+        [
+            "command", "tell",
+            "group", wasKeyValueGet("group",notification),
+            "password", wasKeyValueGet("group_pass",notification),
+            "message", message,
+            "entity", entity,
+            "target", wasKeyValueGet("group_id",notification)
+        ]
+    )
+);
+}
+
+groupSay(string notification, string message)
+{
+    tell(notification, message,"group");  
+}
+
+default
+{
+    on_rez(integer start_param)
+    {
+        llResetScript();    
+    }
+    
+
+    link_message(integer sender_num, integer num, string str, key id)
+    {
+        if(llSubStringIndex(str,llGetScriptName()) != 0)
+            return;
+        string body = (string)id;
+        string message = wasURLUnescape(wasKeyValueGet("message",body));
+        string parameter = llGetSubString(message,llSubStringIndex(message," ")+1,-1);
+        integer die = (integer)parameter;
+        if(!die)
+            groupSay(body, "You must specify what size die to roll (example: [.roll 6])");
+        else if(die < 2 || die > 64)
+            groupSay(body, "Value must be in range (2, 64).");
+        else
+        {
+            integer rand = (integer)llFrand((float)parameter)+1;
+            string msg = wasURLUnescape(wasKeyValueGet("name",body)) + " rolls a "+(string)rand;
+            if(rand == die)
+                msg += " (critical hit!)";
+            else if(rand == 1)
+                msg += " (critical miss!)";
+            groupSay(body, msg);   
+        }  
+    }
+    
+    
+    changed(integer change)
+    {
+        if(change & CHANGED_INVENTORY)
+            llResetScript();    
+    }
+}
