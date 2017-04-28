@@ -1,5 +1,507 @@
+//original script contributed by Bellimora, special thanks
+
+list OPERATORS = ["e", "d", "^", "*", "/", "+", "-", "(", ")"];
+list NUM_CHARS = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "."];
+integer DICE_CHAN = 3;
+integer SPEC_CHAN = 5;
+list FUDGE = [2, "Terrible", "Poor", "Mediocre", "Fair", "Good", "Great", "Superb"];
+list FATE = [4, "Abysmal", "Terrible", "Poor", "Mediocre", "Average", "Fair", "Good", "Great", "Superb", "Epic", "Legendary"];
+
+list OperatorStack; //should only be used in ShuntingYard()
+
+list PolStack;
+
+PushOp(string data) {
+    OperatorStack = [data] + OperatorStack;
+}
+
+string PeekOp() {
+    return llList2String(OperatorStack, 0);
+}
+
+string PopOp() {
+    string output = llList2String(OperatorStack, 0);
+    OperatorStack = llDeleteSubList(OperatorStack, 0, 0);
+    return output;
+}
+
+PushPol(string data) {
+    PolStack = [data] + PolStack;
+}
+
+string PeekPol() {
+    return llList2String(PolStack, 0);
+}
+
+string PopPol() {
+    string output = llList2String(PolStack, 0);
+    PolStack = llDeleteSubList(PolStack, 0, 0);
+    return output;
+}
+
+integer ReversePolish(list input) {
+    PolStack = [];
+    while (llGetListLength(input)) {
+        string current = llList2String(input, 0);
+        input = llDeleteSubList(input, 0, 0);
+        if (IsOp(current)) {
+            current = Crunch(PopPol(), PopPol(), current);
+        }
+        PushPol(current);
+    }
+    return llList2Integer(PolStack, 0);
+}
+
+string Crunch(string numbertwo, string numberone, string operator) {
+    integer a = (integer)numberone;
+    integer b = (integer)numbertwo;
+    integer out;
+    if (operator == "+") {
+        out = a+b;
+    } else if (operator == "-") {
+        out = a-b;
+    } else if (operator == "*") {
+        out = a*b;
+    } else if (operator == "/") {
+        out = a/b;
+    } else if (operator == "^") {
+        out = llRound(llPow((float)a, (float)b));
+    } else if (operator == "d") {
+        out = Roll(a, b, FALSE);
+    } else if (operator == "e") {
+        out = Roll(a, b, TRUE);
+    }
+    return (string)out;
+}
+
+integer IsOp(string data) {
+    return (llListFindList(OPERATORS, [data]) != -1);
+}
+
+list ShuntingYard(string input) {
+    if (llGetSubString(input, 0, 0) == "d" || llGetSubString(input, 0, 0) == "e") input = "1"+input;
+    input = llStringTrim(llToLower(input), STRING_TRIM);
+    list tokens = llParseString2List(input, [], OPERATORS);
+    OperatorStack = [];
+    list out;
+    string current;
+    list trim;
+    string char;
+    string top;
+    integer oplevel;
+    list whynomorethen8tokensll = llParseString2List(current, [], [")"]); 
+    
+    while ((llGetListLength(tokens) > 0) || llGetListLength(OperatorStack)) {
+        current = llList2String(tokens, 0);
+        tokens = llDeleteSubList(tokens, 0, 0);
+        if (llGetListLength(whynomorethen8tokensll) > 1) {
+            tokens = llList2List(whynomorethen8tokensll, 1, 1) + tokens;
+            current = llList2String(whynomorethen8tokensll, 0);
+        }
+        oplevel = llListFindList(OPERATORS, [current]);
+        
+        if (current == "(") {
+            if (llList2String(tokens, 0) == "d" || llList2String(tokens, 0) == "e") {
+                tokens = [1] + tokens;
+            }
+            PushOp(current);
+        } else if (current == ")") {
+            while (PeekOp() != "(") {
+                out += [PopOp()];
+            }
+            PopOp();
+        } else if (current == "" && llGetListLength(tokens) == 0) {
+            while (llGetListLength(OperatorStack)) {
+                out += [PopOp()];
+            }
+        } else if (oplevel != -1) {
+            if (llList2String(tokens, 0) == "d" || llList2String(tokens, 0) == "e") {
+                tokens = [1] + tokens;
+            }
+            while (llListFindList(OPERATORS, [PeekOp()]) <= oplevel && llGetListLength(OperatorStack) > 0) {
+                out += [PopOp()];
+            }
+            PushOp(current); 
+        } else {
+            out += [current];
+        }
+    }
+    return out;
+}
+
+integer Dice(integer size) {
+    if (size < 1) return 0;
+    else return llCeil(llFrand((float)size));
+}
+
+integer Explode(integer size) {
+    if (size < 1) return 0;
+    if (size == 1) return 1;
+    
+    integer out;
+    integer roll;
+    do {
+        roll = Dice(size);
+        out += roll;
+    } while (roll == size);
+    return out;
+}
+
+integer Roll(integer amount, integer size, integer exploding) {
+    integer out;
+    if (amount < 1) return 0;
+    while (amount--) {
+        if (exploding) out += Explode(size);
+        else out += Dice(size);
+    }
+    return out;
+}
+
+integer EquationCheck(string input) {
+    string tail = llGetSubString(input, -1, -1);
+    if (tail != ")") {
+        if (llListFindList(NUM_CHARS, [tail]) == -1) return FALSE;
+    }
+    
+    integer parenCheck = 0;
+    string current;
+    
+    while (llStringLength(input)) {
+        current = llGetSubString(input, 0, 0);
+        input = llDeleteSubString(input, 0, 0);
+        if (llListFindList(OPERATORS, [current]) == -1) {
+            if (llListFindList(NUM_CHARS, [current]) == -1) return FALSE;
+        }
+        if (current == "(") parenCheck++;
+        else if (current == ")") parenCheck--;
+        
+        if (parenCheck < 0) return FALSE;
+    }
+    
+    if (parenCheck != 0) return FALSE;
+    
+    return TRUE;
+}
+
+CypherRoll(key roller, list params) {
+    integer effort;
+    integer skill;
+    integer pip;
+    integer assets;
+    integer shifts;
+    while (llGetListLength(params)) {
+        string type = llToLower(llGetSubString(llList2String(params, 0), -1, -1));
+        if (type == "e") effort = llList2Integer(params, 0);
+        else if (type == "t") skill = 1;
+        else if (type == "s") skill = 2;
+        else if (type == "p") pip = llList2Integer(params, 0);
+        else if (type == "a") assets = llList2Integer(params, 0);
+        else if (type == "d") shifts = llList2Integer(params, 0);
+        params = llDeleteSubList(params, 0, 0);
+    }
+    if (pip > 2) {
+        llRegionSayTo(roller, 0, "You can't have more then a +2 bonus in a roll");
+        return;
+    }
+    
+    if (assets > 2) {
+        llRegionSayTo(roller, 0, "You can't have more then a 2 assets in a roll");
+        return;
+    }
+    
+    string out = llKey2Name(roller)+" does a cypher check";
+    if (effort) out += " with "+(string)effort+" effort";
+    if (skill == 1) out += " trained";
+    else if (skill == 2) out += " specialized";
+    if (assets) out += " with "+(string)assets+" asset(s)";
+    if (shifts) out += " with "+(string)shifts+" divine shift(s)";
+    if (pip) out += " at "+(string)pip;
+    
+    integer roll = Dice(20)+pip;
+    integer difficulty = roll/3 + effort + skill + assets + shifts;
+    out += " and got a "+(string)roll+" which beats a difficulty of "+(string)difficulty+".";
+    llSay(0, out);
+}
+
+GoWild(string input, key roller) {
+    input = llStringTrim(llToLower(input), STRING_TRIM);
+    list roll = llParseString2List(input, [], ["d", "+", "-"]);
+    integer isBust = FALSE;
+    string out;
+    list results;
+    integer wildDie;
+    integer rolls;
+    integer dieSize;
+    integer mod;
+    integer lowest = 999999;
+    integer lowestIndex = -1;
+    integer i;
+    
+    if (llList2String(roll, 0) == "d") roll = [1] + roll;
+    if (llList2String(roll, 1) != "d") {
+        llRegionSayTo(roller, 0, "Format: [x]dy+z, multiple rolls will use a single wild die as per standard savage worlds rules");
+        return;
+    }
+    if (llList2String(roll, 3) == "d") {
+        llRegionSayTo(roller, 0, "Format: [x]dy+z, multiple rolls will use a single wild die as per standard savage worlds rules");
+        return;
+    }
+    if (llList2Integer(roll, 2) < 2) {
+        llRegionSayTo(roller, 0, "Use a die larger then 1, "+llKey2Name(roller));
+        return;
+    }
+    if (llList2Integer(roll, 0) < 1) {
+        llRegionSayTo(roller, 0, "You can't roll less then 1 die, "+llKey2Name(roller));
+    }
+    if (llGetListLength(roll) > 5) {
+        llRegionSayTo(roller, 0, "Format: [x]dy+z, multiple rolls will use a single wild die as per standard savage worlds rules");
+    }
+    
+    out = llKey2Name(roller)+" rolled "+llDumpList2String(roll, "")+" and got: (";
+    
+    rolls = llList2Integer(roll, 0);
+    dieSize = llList2Integer(roll, 2);
+    mod = (integer)(llList2String(roll, 3)+llList2String(roll, 4)); //part of me is offended that I did this
+    
+    while (rolls--) {
+        results += Explode(dieSize) + mod;
+        out += llList2String(results, -1)+" ";
+    }
+    wildDie = Explode(6) + mod;
+    out += "W: "+(string)wildDie+") Result: ";
+    
+    for (i = 0; i < llGetListLength(results); ++i) {
+        if (llList2Integer(results, i) < lowest) {
+            lowest = llList2Integer(results, i);
+            lowestIndex = i;
+        }
+    }
+    if (lowest - mod == 1 && wildDie - mod == 1) isBust = TRUE;
+    
+    if (wildDie > lowest) results = llListReplaceList(results, [wildDie], lowestIndex, lowestIndex);
+    
+    for (i = 0; i < llGetListLength(results); ++i) {
+        out += llList2String(results, i) + " ";
+    } 
+    if (isBust) out += "BUST!";
+    
+    llSay(0, out);
+}
+
+MaidRoll(key roller, integer rating) {
+    if (rating < 1) rating = 1;
+    integer roll = Dice(6);
+    string out = llKey2Name(roller)+" made a maid check at "+(string)rating+" and got: "+(string)(roll * rating);
+    if (roll == 1) out += " NATURAL 1!";
+    llSay(0, out);
+}
+
+Fudge(key roller, string level, list table) {
+    level = llToUpper(llGetSubString(level, 0, 0))+llToLower(llDeleteSubString(level, 0, 0));
+    integer offset = llList2Integer(table, 0);
+    table = llList2List(table, 1, -1);
+    integer mod = llListFindList(table, [level]);
+    if (mod == -1) mod = (integer)level + offset;
+    string out = llKey2Name(roller)+" made a fudge check";
+    if (mod - offset > 0) out += " at +"+(string)(mod - offset);
+    else if (mod - offset < 0) out += " at "+(string)(mod - offset);
+    out += " and got: (";
+    integer rolls = 4;
+    integer roll;
+    while (rolls--) {
+        roll = Dice(3)-2;
+        mod += roll;
+        if (roll == -1) out += "- ";
+        else if (roll == 0) out += "0 ";
+        else if (roll == 1) out += "+ ";
+    }
+    out = llGetSubString(out, 0, -2) + ") Total: "+(string)(mod - offset)+" ";
+    if (mod < 0) mod = 0;
+    if (mod >= llGetListLength(table)) mod = llGetListLength(table)-1;
+    out += llList2String(table, mod);
+    
+    llSay(0, out);
+}
+
+Shadowrun(key roller, list parameters) {
+    integer dice = llList2Integer(parameters, 0);
+    integer edge = FALSE;
+    integer hits = 0;
+    integer ones = 0;
+    if (dice < 1) {
+        llRegionSayTo(roller, 0, "You need to specify a positive number of dice to roll");
+        return;
+    }
+    if (llToLower(llList2String(parameters, 1)) == "edge") edge = TRUE;
+    
+    integer rolls = dice;
+    string out = llKey2Name(roller)+" made a shadowrun check with "+(string)dice+" dice ";
+    if (edge) out += "with edge ";
+    out += "and got (";
+    integer roll;
+    
+    while (rolls--) {
+        roll = Dice(6);
+        out += (string)roll+" ";
+        if (roll == 1) ++ones;
+        else if (roll == 6 && edge) {
+            ++rolls;
+            ++dice;
+        }
+        if (roll > 4) ++hits;
+    }
+    out = llGetSubString(out, 0, -2)+") Hits: "+(string)hits;
+    if (ones > dice/2 && hits == 0) out += " CRITICAL GLITCH!";
+    else if (ones > dice/2) out += " GLITCH!";
+    
+    llSay(0, out);
+}
+
+Ova(key roller, integer dice) {
+    if (dice < 1) {
+        llRegionSayTo(roller, 0, "You need to roll at least 1 die");
+        return;        
+    }
+    list rolls = [0, 0, 0, 0, 0, 0];
+    integer roll;
+    string out = llKey2Name(roller)+" rolled an OVA check of "+(string)dice+" an got (";
+    while (dice--) {
+        roll = Dice(6);
+        out += (string)roll+" ";
+        rolls = llListReplaceList(rolls, [llList2Integer(rolls, roll-1)+1], roll-1, roll-1);
+    }
+    integer i = 6;
+    integer highest = 0;
+    integer current;
+    while (i--) {
+        current = llList2Integer(rolls, i) * (i+1);
+        if (current > highest) highest = current;
+    }
+    out = llGetSubString(out, 0, -2) + ") Result: "+(string)highest;
+    llSay(0, out);
+}
+
+CTech(key roller, list parameters) {
+    integer dice = llList2Integer(parameters, 0);
+    integer base = llList2Integer(parameters, 1);
+    if (dice < 1) {
+        llRegionSayTo(roller, 0, "You need to roll at least 1 die.  Use:  CT <dice> <base>");
+        return;
+    }
+    list rolls = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+    integer roll;
+    string out = llKey2Name(roller)+" rolled an Cthulhu tech check, Dice: "+(string)dice+" Base: "+(string)base+" an got (";
+    while (dice--) {
+        roll = Dice(10);
+        out += (string)roll+" ";
+        rolls = llListReplaceList(rolls, [llList2Integer(rolls, roll-1)+1], roll-1, roll-1);
+    }
+    integer i = 10;
+    integer highest = 0;
+    integer current;
+    while (i--) {
+        current = llList2Integer(rolls, i) * (i+1);
+        if (current > highest) highest = current;
+    }
+    current = 0;
+    while (i < 10) {
+        if (llList2Integer(rolls, i)) {
+            current += i+1;
+        } else {
+            current = 0;
+        }
+        i++;
+    }
+    if (current > highest) highest = current;
+    out = llGetSubString(out, 0, -2) + ") Result: "+(string)(highest + base);
+    llSay(0, out);
+}
+
+StoryTeller(key roller, integer dice) {
+    integer hits = 0;
+    integer ones = 0;
+    if (dice < 1) {
+        llRegionSayTo(roller, 0, "You need to specify a positive number of dice to roll");
+        return;
+    }    
+    string out = llKey2Name(roller)+" made a Storyteller check with "+(string)dice+" dice and got (";
+    integer roll;
+    
+    while (dice--) {
+        roll = Dice(10);
+        out += (string)roll+" ";
+        if (roll == 1) ++ones;
+        else if (roll == 10) {
+            ++dice;
+        }
+        if (roll > 7) ++hits;
+    }
+    out = llGetSubString(out, 0, -2)+") Hits: "+(string)hits;
+    
+    llSay(0, out);  
+}
+
+Ore(key roller, integer dice) {
+    if (dice < 1) {
+        llRegionSayTo(roller, 0, "You need to specify a positive number of dice to roll");
+        return;
+    }
+    string out = llKey2Name(roller)+" made an Ore check with "+(string)dice+" dice and got (";
+    
+    list rolls = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+    integer roll;
+    while (dice--) {
+        roll = Dice(10);
+        out += (string)roll+" ";
+        rolls = llListReplaceList(rolls, [llList2Integer(rolls, roll-1)+1], roll-1, roll-1);
+    }
+    
+    out = llGetSubString(out, 0, -2) + ") Results: ";
+    
+    integer i = 10;
+    integer width;
+    integer success = FALSE;
+    while (i--) {
+        width = llList2Integer(rolls, i);
+        if (width > 1) {
+            success = TRUE;
+            out += (string)(i+1)+"x"+(string)width+" ";
+        }
+    }
+    
+    if (!success) out += "FAILURE!";
+    llSay(0, out);
+}
+
+Aaie(key roller) {
+    integer rolls = 3;
+    list results;
+    integer effect;
+    while (rolls--) {
+        results += [Dice(20)];
+    }
+    effect = llList2Integer(results, 0);
+    results = llListSort(results, 1, TRUE);
+    string out = llKey2Name(roller) + " made an AAIE check and got ("+llList2String(results, 0)+" "+
+        llList2String(results, 1)+" "+llList2String(results, 2)+") Result: "+llList2String(results, 1)+" Effect die: "+(string)effect;
+    llSay(0, out);
+}
+
+
+
+
 ///////////////////////////////////////////////////////////////////////////
 ///WaS fuctions
+
+string wasURLEscape(string i) {
+    if(i == "") return "";
+    string o = llGetSubString(i, 0, 0);
+    i = llDeleteSubString(i, 0, 0);
+    if(o == " ") return "+" + wasURLEscape(i);
+    if(o == "\n") return "%0D%0A" + wasURLEscape(i);
+    return llEscapeURL(o) + wasURLEscape(i); 
+}
+
 
 
 string wasKeyValueGet(string k, string data) {
@@ -65,7 +567,7 @@ llInstantMessage((key)wasKeyValueGet("corrade",notification),
             "command", "tell",
             "group", wasKeyValueGet("group",notification),
             "password", wasKeyValueGet("group_pass",notification),
-            "message", message,
+            "message", wasURLEscape(message),
             "entity", entity,
             "target", wasKeyValueGet("group_id",notification)
         ]
@@ -91,23 +593,47 @@ default
         if(llSubStringIndex(str,llGetScriptName()) != 0)
             return;
         string body = (string)id;
-        string message = wasURLUnescape(wasKeyValueGet("message",body));
-        string parameter = llGetSubString(message,llSubStringIndex(message," ")+1,-1);
-        integer die = (integer)parameter;
-        if(!die)
-            groupSay(body, "You must specify what size die to roll (example: [.roll 6])");
-        else if(die < 2 || die > 64)
-            groupSay(body, "Value must be in range (2, 64).");
-        else
-        {
-            integer rand = (integer)llFrand((float)parameter)+1;
-            string msg = wasURLUnescape(wasKeyValueGet("name",body)) + " rolls a "+(string)rand;
-            if(rand == die)
-                msg += " (critical hit!)";
-            else if(rand == 1)
-                msg += " (critical miss!)";
-            groupSay(body, msg);   
-        }  
+        string msg = wasURLUnescape(wasKeyValueGet("message",body));
+        list parsed;
+        msg = llGetSubString(msg,llSubStringIndex(msg," ")+1,-1);
+        msg = llStringTrim(msg, STRING_TRIM);
+        string name = wasURLUnescape(wasKeyValueGet("name",body));
+            parsed = llParseString2List(msg, [" "], []);
+            if (llGetListLength(parsed) == 1) {
+                if (EquationCheck(llList2String(parsed, 0))) {
+                    groupSay(body, name+" rolls "+msg+" and gets: "+
+                        (string)ReversePolish(ShuntingYard(llToLower(llList2String(parsed, 0)))));
+                } else {
+                    groupSay(body,"That wasn't a proper equation.");
+                }
+            } else {
+                integer rolls = llList2Integer(parsed, 0);
+                if (rolls < 1) return;
+                if (rolls == 1) {
+                    if (EquationCheck(llList2String(parsed, 0))) {
+                        groupSay(body, name+" rolls "+msg+" and gets: "+
+                            (string)ReversePolish(ShuntingYard(llToLower(llList2String(parsed, 0)))));
+                    } else {
+                        groupSay(body,"That wasn't a proper equation.");
+                    }
+                } else {
+                    if (EquationCheck(llList2String(parsed, 1))) {
+                        integer total;
+                        integer roll;
+                        string out = name+" rolls "+llList2String(parsed, 1)+" "+(string)rolls+" times and gets (";
+                        while (rolls--) {
+                            roll = ReversePolish(ShuntingYard(llToLower(llList2String(parsed, 1))));
+                            out += (string)roll+" ";
+                            total += roll;
+                        }
+                        out = llGetSubString(out, 0, -2) + ") Total: "+(string)total;
+                        groupSay(body, out);
+                    } else {
+                        groupSay(body, "That wasn't a proper equation");
+                    }
+            }
+        }
+        
     }
     
     
