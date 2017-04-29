@@ -89,10 +89,11 @@ list ShuntingYard(string input) {
     string char;
     string top;
     integer oplevel;
-    list whynomorethen8tokensll = llParseString2List(current, [], [")"]); 
+    list whynomorethen8tokensll;
     
     while ((llGetListLength(tokens) > 0) || llGetListLength(OperatorStack)) {
         current = llList2String(tokens, 0);
+        whynomorethen8tokensll = llParseString2List(current, [], [")"]);
         tokens = llDeleteSubList(tokens, 0, 0);
         if (llGetListLength(whynomorethen8tokensll) > 1) {
             tokens = llList2List(whynomorethen8tokensll, 1, 1) + tokens;
@@ -183,7 +184,7 @@ integer EquationCheck(string input) {
     return TRUE;
 }
 
-CypherRoll(key roller, list params) {
+CypherRoll(string notification, list params) {
     integer effort;
     integer skill;
     integer pip;
@@ -200,16 +201,16 @@ CypherRoll(key roller, list params) {
         params = llDeleteSubList(params, 0, 0);
     }
     if (pip > 2) {
-        llRegionSayTo(roller, 0, "You can't have more then a +2 bonus in a roll");
+        groupSay(notification, "You can't have more then a +2 bonus in a roll");
         return;
     }
     
     if (assets > 2) {
-        llRegionSayTo(roller, 0, "You can't have more then a 2 assets in a roll");
+        groupSay(notification, "You can't have more then a 2 assets in a roll");
         return;
     }
     
-    string out = llKey2Name(roller)+" does a cypher check";
+    string out = wasURLUnescape(wasKeyValueGet("name",notification))+" does a cypher check";
     if (effort) out += " with "+(string)effort+" effort";
     if (skill == 1) out += " trained";
     else if (skill == 2) out += " specialized";
@@ -220,10 +221,10 @@ CypherRoll(key roller, list params) {
     integer roll = Dice(20)+pip;
     integer difficulty = roll/3 + effort + skill + assets + shifts;
     out += " and got a "+(string)roll+" which beats a difficulty of "+(string)difficulty+".";
-    llSay(0, out);
+    groupSay(notification, out);
 }
 
-GoWild(string input, key roller) {
+GoWild(string notification, string input) {
     input = llStringTrim(llToLower(input), STRING_TRIM);
     list roll = llParseString2List(input, [], ["d", "+", "-"]);
     integer isBust = FALSE;
@@ -239,25 +240,25 @@ GoWild(string input, key roller) {
     
     if (llList2String(roll, 0) == "d") roll = [1] + roll;
     if (llList2String(roll, 1) != "d") {
-        llRegionSayTo(roller, 0, "Format: [x]dy+z, multiple rolls will use a single wild die as per standard savage worlds rules");
+        groupSay(notification, "Format: [x]dy+z, multiple rolls will use a single wild die as per standard savage worlds rules");
         return;
     }
     if (llList2String(roll, 3) == "d") {
-        llRegionSayTo(roller, 0, "Format: [x]dy+z, multiple rolls will use a single wild die as per standard savage worlds rules");
+        groupSay(notification, "Format: [x]dy+z, multiple rolls will use a single wild die as per standard savage worlds rules");
         return;
     }
     if (llList2Integer(roll, 2) < 2) {
-        llRegionSayTo(roller, 0, "Use a die larger then 1, "+llKey2Name(roller));
+        groupSay(notification, "Use a die larger then 1, "+wasURLUnescape(wasKeyValueGet("name",notification)));
         return;
     }
     if (llList2Integer(roll, 0) < 1) {
-        llRegionSayTo(roller, 0, "You can't roll less then 1 die, "+llKey2Name(roller));
+        groupSay(notification, "You can't roll less then 1 die, "+wasURLUnescape(wasKeyValueGet("name",notification)));
     }
     if (llGetListLength(roll) > 5) {
-        llRegionSayTo(roller, 0, "Format: [x]dy+z, multiple rolls will use a single wild die as per standard savage worlds rules");
+        groupSay(notification, "Format: [x]dy+z, multiple rolls will use a single wild die as per standard savage worlds rules");
     }
     
-    out = llKey2Name(roller)+" rolled "+llDumpList2String(roll, "")+" and got: (";
+    out = wasURLUnescape(wasKeyValueGet("name",notification))+" rolled "+llDumpList2String(roll, "")+" and got: (";
     
     rolls = llList2Integer(roll, 0);
     dieSize = llList2Integer(roll, 2);
@@ -285,24 +286,24 @@ GoWild(string input, key roller) {
     } 
     if (isBust) out += "BUST!";
     
-    llSay(0, out);
+    groupSay(notification, out);
 }
 
-MaidRoll(key roller, integer rating) {
+MaidRoll(string notification, integer rating) {
     if (rating < 1) rating = 1;
     integer roll = Dice(6);
-    string out = llKey2Name(roller)+" made a maid check at "+(string)rating+" and got: "+(string)(roll * rating);
+    string out = wasURLUnescape(wasKeyValueGet("name",notification))+" made a maid check at "+(string)rating+" and got: "+(string)(roll * rating);
     if (roll == 1) out += " NATURAL 1!";
-    llSay(0, out);
+    groupSay(notification, out);
 }
 
-Fudge(key roller, string level, list table) {
+Fudge(string notification, string level, list table) {
     level = llToUpper(llGetSubString(level, 0, 0))+llToLower(llDeleteSubString(level, 0, 0));
     integer offset = llList2Integer(table, 0);
     table = llList2List(table, 1, -1);
     integer mod = llListFindList(table, [level]);
     if (mod == -1) mod = (integer)level + offset;
-    string out = llKey2Name(roller)+" made a fudge check";
+    string out = wasURLUnescape(wasKeyValueGet("name",notification))+" made a fudge check";
     if (mod - offset > 0) out += " at +"+(string)(mod - offset);
     else if (mod - offset < 0) out += " at "+(string)(mod - offset);
     out += " and got: (";
@@ -320,22 +321,22 @@ Fudge(key roller, string level, list table) {
     if (mod >= llGetListLength(table)) mod = llGetListLength(table)-1;
     out += llList2String(table, mod);
     
-    llSay(0, out);
+    groupSay(notification, out);
 }
 
-Shadowrun(key roller, list parameters) {
+Shadowrun(string notification, list parameters) {
     integer dice = llList2Integer(parameters, 0);
     integer edge = FALSE;
     integer hits = 0;
     integer ones = 0;
     if (dice < 1) {
-        llRegionSayTo(roller, 0, "You need to specify a positive number of dice to roll");
+        groupSay(notification, "You need to specify a positive number of dice to roll");
         return;
     }
     if (llToLower(llList2String(parameters, 1)) == "edge") edge = TRUE;
     
     integer rolls = dice;
-    string out = llKey2Name(roller)+" made a shadowrun check with "+(string)dice+" dice ";
+    string out = wasURLUnescape(wasKeyValueGet("name",notification))+" made a shadowrun check with "+(string)dice+" dice ";
     if (edge) out += "with edge ";
     out += "and got (";
     integer roll;
@@ -354,17 +355,17 @@ Shadowrun(key roller, list parameters) {
     if (ones > dice/2 && hits == 0) out += " CRITICAL GLITCH!";
     else if (ones > dice/2) out += " GLITCH!";
     
-    llSay(0, out);
+    groupSay(notification, out);
 }
 
-Ova(key roller, integer dice) {
+Ova(string notification, integer dice) {
     if (dice < 1) {
-        llRegionSayTo(roller, 0, "You need to roll at least 1 die");
+        groupSay(notification, "You need to roll at least 1 die");
         return;        
     }
     list rolls = [0, 0, 0, 0, 0, 0];
     integer roll;
-    string out = llKey2Name(roller)+" rolled an OVA check of "+(string)dice+" an got (";
+    string out = wasURLUnescape(wasKeyValueGet("name",notification))+" rolled an OVA check of "+(string)dice+" an got (";
     while (dice--) {
         roll = Dice(6);
         out += (string)roll+" ";
@@ -378,19 +379,19 @@ Ova(key roller, integer dice) {
         if (current > highest) highest = current;
     }
     out = llGetSubString(out, 0, -2) + ") Result: "+(string)highest;
-    llSay(0, out);
+    groupSay(notification, out);
 }
 
-CTech(key roller, list parameters) {
+CTech(string notification, list parameters) {
     integer dice = llList2Integer(parameters, 0);
     integer base = llList2Integer(parameters, 1);
     if (dice < 1) {
-        llRegionSayTo(roller, 0, "You need to roll at least 1 die.  Use:  CT <dice> <base>");
+        groupSay(notification, "You need to roll at least 1 die.  Use:  CT <dice> <base>");
         return;
     }
     list rolls = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
     integer roll;
-    string out = llKey2Name(roller)+" rolled an Cthulhu tech check, Dice: "+(string)dice+" Base: "+(string)base+" an got (";
+    string out = wasURLUnescape(wasKeyValueGet("name",notification))+" rolled an Cthulhu tech check, Dice: "+(string)dice+" Base: "+(string)base+" an got (";
     while (dice--) {
         roll = Dice(10);
         out += (string)roll+" ";
@@ -414,17 +415,17 @@ CTech(key roller, list parameters) {
     }
     if (current > highest) highest = current;
     out = llGetSubString(out, 0, -2) + ") Result: "+(string)(highest + base);
-    llSay(0, out);
+    groupSay(notification, out);
 }
 
-StoryTeller(key roller, integer dice) {
+StoryTeller(string notification, integer dice) {
     integer hits = 0;
     integer ones = 0;
     if (dice < 1) {
-        llRegionSayTo(roller, 0, "You need to specify a positive number of dice to roll");
+        groupSay(notification, "You need to specify a positive number of dice to roll");
         return;
     }    
-    string out = llKey2Name(roller)+" made a Storyteller check with "+(string)dice+" dice and got (";
+    string out = wasURLUnescape(wasKeyValueGet("name",notification))+" made a Storyteller check with "+(string)dice+" dice and got (";
     integer roll;
     
     while (dice--) {
@@ -438,15 +439,15 @@ StoryTeller(key roller, integer dice) {
     }
     out = llGetSubString(out, 0, -2)+") Hits: "+(string)hits;
     
-    llSay(0, out);  
+    groupSay(notification, out);  
 }
 
-Ore(key roller, integer dice) {
+Ore(string notification, integer dice) {
     if (dice < 1) {
-        llRegionSayTo(roller, 0, "You need to specify a positive number of dice to roll");
+        groupSay(notification, "You need to specify a positive number of dice to roll");
         return;
     }
-    string out = llKey2Name(roller)+" made an Ore check with "+(string)dice+" dice and got (";
+    string out = wasURLUnescape(wasKeyValueGet("name",notification))+" made an Ore check with "+(string)dice+" dice and got (";
     
     list rolls = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
     integer roll;
@@ -470,10 +471,10 @@ Ore(key roller, integer dice) {
     }
     
     if (!success) out += "FAILURE!";
-    llSay(0, out);
+    groupSay(notification, out);
 }
 
-Aaie(key roller) {
+Aaie(string notification) {
     integer rolls = 3;
     list results;
     integer effect;
@@ -482,9 +483,9 @@ Aaie(key roller) {
     }
     effect = llList2Integer(results, 0);
     results = llListSort(results, 1, TRUE);
-    string out = llKey2Name(roller) + " made an AAIE check and got ("+llList2String(results, 0)+" "+
+    string out = wasURLUnescape(wasKeyValueGet("name",notification)) + " made an AAIE check and got ("+llList2String(results, 0)+" "+
         llList2String(results, 1)+" "+llList2String(results, 2)+") Result: "+llList2String(results, 1)+" Effect die: "+(string)effect;
-    llSay(0, out);
+    groupSay(notification, out);
 }
 
 
@@ -598,24 +599,50 @@ default
         msg = llGetSubString(msg,llSubStringIndex(msg," ")+1,-1);
         msg = llStringTrim(msg, STRING_TRIM);
         string name = wasURLUnescape(wasKeyValueGet("name",body));
-            parsed = llParseString2List(msg, [" "], []);
-            if (llGetListLength(parsed) == 1) {
-                if (EquationCheck(llList2String(parsed, 0))) {
-                    groupSay(body, name+" rolls "+msg+" and gets: "+
-                        (string)ReversePolish(ShuntingYard(llToLower(llList2String(parsed, 0)))));
+        parsed = llParseString2List(msg, [" "], []);
+        string cmd = llToLower(llList2String(parsed, 0));
+            if (cmd == "cypher") {
+                CypherRoll(body, llList2List(parsed, 1, -1));
+            } else if (cmd == "wild") {
+                GoWild(body,llDumpList2String(llList2List(parsed, 1, -1), " "));
+            } else if (cmd == "maid") {
+                MaidRoll(body, llList2Integer(parsed, 1));
+            } else if (cmd == "fudge") {
+                Fudge(body, llList2String(parsed, 1), FUDGE);
+            } else if (cmd == "fate") {
+                Fudge(body, llList2String(parsed, 1), FATE);
+            } else if (cmd == "sr" || cmd == "shadowrun") {
+                Shadowrun(id, llList2List(parsed, 1, 2));
+            } else if (body == "ova") {
+                Ova(id, llList2Integer(parsed, 1));
+            } else if (body == "ct" || cmd == "cthulhutech" || cmd == "ctech") {
+                CTech(id, llList2List(parsed, 1, 2));
+            } else if (body == "st" || cmd == "storyteller") {
+                StoryTeller(id, llList2Integer(parsed, 1));
+            } else if (body == "ore") {
+                Ore(id, llList2Integer(parsed, 1));
+            } else if (body == "aaie") {
+                Aaie(id);
+            }
+            else
+            {
+        if (llGetListLength(parsed) == 1) {
+            if (EquationCheck(llList2String(parsed, 0))) {
+                groupSay(body, name+" rolls "+msg+" and gets: "+
+                    (string)ReversePolish(ShuntingYard(llToLower(llList2String(parsed, 0)))));
                 } else {
                     groupSay(body,"That wasn't a proper equation.");
                 }
             } else {
                 integer rolls = llList2Integer(parsed, 0);
-                if (rolls < 1) return;
-                if (rolls == 1) {
-                    if (EquationCheck(llList2String(parsed, 0))) {
-                        groupSay(body, name+" rolls "+msg+" and gets: "+
-                            (string)ReversePolish(ShuntingYard(llToLower(llList2String(parsed, 0)))));
-                    } else {
-                        groupSay(body,"That wasn't a proper equation.");
-                    }
+        if (rolls < 1) return;
+        if (rolls == 1) {
+            if (EquationCheck(llList2String(parsed, 0))) {
+                groupSay(body, name+" rolls "+msg+" and gets: "+
+                    (string)ReversePolish(ShuntingYard(llToLower(llList2String(parsed, 0)))));
+        } else {
+            groupSay(body,"That wasn't a proper equation.");
+                }
                 } else {
                     if (EquationCheck(llList2String(parsed, 1))) {
                         integer total;
@@ -633,7 +660,7 @@ default
                     }
             }
         }
-        
+            }
     }
     
     
